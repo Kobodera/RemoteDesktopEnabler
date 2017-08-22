@@ -32,7 +32,7 @@ namespace RemotDesktopEnabler
             {
                 Console.WriteLine("Attempting to disable remote desktop connections.");
 
-                Rdp.SetRdpEnabled(false1);
+                Rdp.SetRdpEnabled(false);
 
                 Console.Write("Remote desktop connections disabled.");
             }
