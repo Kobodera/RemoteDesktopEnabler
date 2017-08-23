@@ -6,14 +6,14 @@ using System.Text;
 using System.Threading.Tasks;
 using StringExtensions;
 
-namespace RemotDesktopEnabler
+namespace RemotDesktopEnabler.RemoteDesktop
 {
     internal class Rdp
     {
+        RegistryKey rdpKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Default).OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Terminal Server", true);
+
         private bool SetRdpRegistryValue(int value, bool forceChange)
         {
-            RegistryKey key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Default);
-            var rdpKey = key.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Terminal Server", true);
             int currentValue = rdpKey.GetValue("fDenyTSConnections").ToString().ToInt(-1);
 
             //Value was not found do not proceed with change.
@@ -29,6 +29,7 @@ namespace RemotDesktopEnabler
             else if (value == 0 && currentValue == 0 && !forceChange)
             {
                 Console.WriteLine("RDP is already enabled. No changes will be made.");
+                return false;
             }
             else
             {
@@ -50,13 +51,16 @@ namespace RemotDesktopEnabler
             }
         }
 
-        internal static RdpStatus GetStatus()
+        private RdpStatus GetRdpStatus()
         {
-            RegistryKey key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Default);
-            var rdpKey = key.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Terminal Server", true);
             int currentValue = rdpKey.GetValue("fDenyTSConnections").ToString().ToInt(-1);
 
             return (RdpStatus)currentValue;
+        }
+
+        internal static RdpStatus GetStatus()
+        {
+            return new Rdp().GetRdpStatus();
         }
     }
 }

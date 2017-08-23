@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 
 namespace RemotDesktopEnabler
 {
-    internal enum RdpStatus
+    internal enum FirewallDomain
     {
-        Unknown = -1,
-        Enabled = 0,
-        Disabled = 1
+         Domain = 0x0001,
+         Private = 0x0002,
+         Public = 0x0004,
+         All = 0x7FFFFFFF
     }
 }
