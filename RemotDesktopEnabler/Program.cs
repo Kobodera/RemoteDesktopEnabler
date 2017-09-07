@@ -35,6 +35,7 @@ namespace RemotDesktopEnabler
                 Console.WriteLine("Attempting to disable remote desktop connections.");
 
                 Rdp.SetRdpEnabled(false);
+                Firewall.RemoveRemoteDesktopRule();
 
                 Console.Write("Remote desktop connections disabled.");
             }
@@ -57,17 +58,15 @@ Allows remote desktop connection for [Time in seconds] seconds.
 Ex. RemoteDesktopEnabler 10
 Allows Remote Desktop connections for 10 seconds.
 
-RemoteDesktopEnabler firewall [exists|status|enable|disable]
-exists: Returns if the Remote Desktop rule exists in Windows firewall. 
-        Ex. Windows 10 Home edition does not allow remote connections
+RemoteDesktopEnabler firewall [status|enable|on|disable|off]
 status: Returns the current firewall status for private, domain and public networks. Enabled/Disabled
-enable: Forces the remote desktop firewall rule to be enabled in Windows firewall. Use with care!
-disable: Forces the remote desktop firewall rule to be disabled in Windows firewall. Use with care!
+enable/on: Forces the remote desktop firewall rule to be enabled in Windows firewall. Use with care!
+disable/off: Forces the remote desktop firewall rule to be disabled in Windows firewall. Use with care!
 
-RemoteDesktopEnabler rdp [status|enable|disable]
+RemoteDesktopEnabler rdp [status|enable|on|disable|off]
 status: Returns if remote desktop connections will be accepted by the computer
-enable: Forces remote desktop connections to be accepted. Use with care!
-disable: Forces remote desktop connections to be refused. Use with care!
+enable/on: Forces remote desktop connections to be accepted. Use with care!
+disable/off: Forces remote desktop connections to be refused. Use with care!
 
 Press ENTER to continue...");
 
@@ -78,19 +77,16 @@ Press ENTER to continue...");
         {
             command = command.ToLower().Trim();
 
-            if (command == "exists")
-            {
-                ShowFirewallRdpRuleExists();
-            }
-            else if (command == "status")
+            if (command == "status")
             {
                 ShowFirewallStatus();
+                Console.ReadLine();
             }
-            else if (command == "enable")
+            else if (command == "enable" || command == "on")
             {
                 ForceFirewallRdpEnable();
             }
-            else if (command == "disable")
+            else if (command == "disable" || command == "off")
             {
                 ForceFirewallRdpDisable();
             }
@@ -107,12 +103,13 @@ Press ENTER to continue...");
             if (command == "status")
             {
                 new Program().ShowRdpStatus();
+                Console.ReadLine();
             }
-            else if (command == "enable")
+            else if (command == "enable" || command == "on")
             {
                 new Program().ForceRdpEnable();
             }
-            else if (command == "disable")
+            else if (command == "disable" || command == "off")
             {
                 new Program().ForceRdpDisable();
             }
@@ -160,6 +157,11 @@ Press ENTER to continue...");
                 else if (args[0].IsInt())
                 {
                     new Program().TemporarelyEnableRemoteDesktop(args[0].ToInt());
+                    Console.WriteLine();
+                    Console.WriteLine();
+                    Console.WriteLine("Press ENTER to disable firewall rule and close the program");
+                    Console.ReadLine();
+                    Firewall.RemoveRemoteDesktopRule();
                 }
                 else
                 {
@@ -175,110 +177,52 @@ Press ENTER to continue...");
 
         private void ForceFirewallRdpDisable()
         {
-            if (Firewall.RemoteDesktopRuleExists())
-            {
-                Console.WriteLine("Forcing Remote Desktop Firewall rule disabled.");
-                Firewall.SetRemoteDesktopEnabled(false, true);
-            }
+            Firewall.RemoveRemoteDesktopRule();
+            ShowFirewallStatus();
         }
 
         private void ForceFirewallRdpEnable()
         {
-            if (Firewall.RemoteDesktopRuleExists())
-            {
-                Console.WriteLine("Forcing Remote Desktop Firewall rule enabled.");
-                Firewall.SetRemoteDesktopEnabled(true, true);
-            }
+            Firewall.AddRemoteDesktopRule();
+            ShowFirewallStatus();
         }
 
         private void ForceRdpEnable()
         {
-            Console.WriteLine("Attempting to enable remote desktop connections by force.");
             Rdp.SetRdpEnabled(true, true);
-            Console.WriteLine("Remote desktop connections enabled.");
+            ShowRdpStatus();
         }
 
         private void ForceRdpDisable()
         {
-            Console.WriteLine("Attempting to disable remote desktop connections by force.");
             Rdp.SetRdpEnabled(false, true);
-            Console.WriteLine("Remote desktop connections disabled.");
-        }
-
-        private bool EnableRdpInFirewall()
-        {
-            if (!Firewall.RemoteDesktopRuleExists())
-            {
-                Console.WriteLine("No remote desktop rule found. No modification to firewall will be done.");
-                return false;
-            }
-
-            Console.WriteLine("Attempting to enable Remote Desktop in Wondows firewall.");
-            bool fwRulesChanged = Firewall.SetRemoteDesktopEnabled(true);
-            if (fwRulesChanged)
-            {
-                Console.WriteLine("Firewall rules enabled");
-            }
-            else
-            {
-                Console.WriteLine("Remote Desktop firewall rules already enabled.");
-            }
-
-            return fwRulesChanged;
-        }
-
-        private void DisableRdpInFirewall(bool fwRulesChanged)
-        {
-            if (fwRulesChanged)
-            {
-                Console.WriteLine("Attempting to disable remote desktop firewall rules.");
-                Firewall.SetRemoteDesktopEnabled(false);
-                Console.WriteLine("Remote desktop firewall rules disabled.");
-            }
+            ShowRdpStatus();
         }
 
         private void TemporarelyEnableRemoteDesktop(int seconds)
         {
+            Rdp.SetRdpEnabled(true);
+            ShowRdpStatus();
 
-            disableOnClose = true;
+            Console.WriteLine();
 
-            bool fwRulesChanged = EnableRdpInFirewall();
+            Firewall.AddRemoteDesktopRule();
+            ShowFirewallStatus();
 
-            Console.WriteLine("Attempting to enable remote desktop connections.");
-            
-            if (Rdp.SetRdpEnabled(true))
-            {
-
-                Console.WriteLine($"Remote desktop connections enabled for {seconds} seconds.");
-            }
-            else
-            {
-                Console.ReadLine();
-                return;
-            }
+            Console.WriteLine();
 
             System.Threading.Thread.Sleep(seconds * 1000);
 
-            DisableRdpInFirewall(fwRulesChanged);
+            Rdp.SetRdpEnabled(false);
+            ShowRdpStatus();
 
-            Console.WriteLine("Attempting to disable remote desktop connections.");
-
-            if (Rdp.SetRdpEnabled(false))
-            {
-                Console.Write("Remote desktop connections disabled.");
-            }
-            else
-            {
-                Console.ReadLine();
-                return;
-            }
+            Console.WriteLine();
         }
 
         private void ShowRdpStatus()
         {
             var status = Rdp.GetStatus();
             Console.WriteLine($"Remote Desktop connections {status.ToString()}");
-            Console.ReadLine();
         }
 
         private void ShowFirewallStatus()
@@ -289,14 +233,16 @@ Press ENTER to continue...");
             Console.WriteLine($"Domain network firewall is {status}");
             status = Firewall.Status(FirewallDomain.Public);
             Console.WriteLine($"Public network firewall is {status}");
-            Console.ReadLine();
-        }
 
-        private void ShowFirewallRdpRuleExists()
-        {
-            Console.WriteLine($"Remote desktop rules exists: {Firewall.RemoteDesktopRuleExists()}");
-            Console.ReadLine();
+            if (Firewall.RemoteDesktopRuleExists())
+            {
+                Console.WriteLine("Remote Desktop Firewall Rule is Activated");
+            }
+            else
+            {
+                Console.Write("Remote Desktop Firewall Rule is Deactivated");
+            }
         }
-
     }
 }
+

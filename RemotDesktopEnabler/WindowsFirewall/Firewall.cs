@@ -9,7 +9,13 @@ namespace RemotDesktopEnabler.WindowsFirewall
 {
     internal class Firewall
     {
-        readonly INetFwPolicy2 mgr = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
+        readonly string FirewallRuleName = "RDPEnabler";
+        readonly INetFwPolicy2 policyManager;
+
+        public Firewall()
+        {
+            policyManager = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
+        }
 
         private FirewallStatus FirewallStatus(FirewallDomain? domain)
         {
@@ -22,10 +28,10 @@ namespace RemotDesktopEnabler.WindowsFirewall
             }
             else
             {
-                fwCurrentProfileTypes = (NET_FW_PROFILE_TYPE2_)mgr.CurrentProfileTypes;
+                fwCurrentProfileTypes = (NET_FW_PROFILE_TYPE2_)policyManager.CurrentProfileTypes;
             }
 
-            return (FirewallStatus)Convert.ToInt32(mgr.get_FirewallEnabled(fwCurrentProfileTypes));
+            return (FirewallStatus)Convert.ToInt32(policyManager.get_FirewallEnabled(fwCurrentProfileTypes));
 
         }
         internal static FirewallStatus Status(FirewallDomain? domain = null)
@@ -35,39 +41,45 @@ namespace RemotDesktopEnabler.WindowsFirewall
 
         private bool RemoteDesktopFirewallRuleExists()
         {
-            return mgr.Rules.OfType<INetFwRule>().Where(x => x.LocalPorts == "3389").Count() > 0;
+            return policyManager.Rules.OfType<INetFwRule>().Where(x => x.Name == FirewallRuleName).Count() > 0;
+        }
+
+        private void AddCustomRemoteDesktopRule()
+        {
+            INetFwRule rule = (INetFwRule)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwRule"));
+            rule.Action = NET_FW_ACTION_.NET_FW_ACTION_ALLOW;
+            rule.Protocol = 6; //TCP
+            rule.Enabled = true;
+            rule.Name = FirewallRuleName;
+            rule.InterfaceTypes = "All";
+            rule.RemoteAddresses = "LocalSubnet";
+            rule.LocalPorts = "3389";
+            rule.RemotePorts = "3389";
+
+            policyManager.Rules.Add(rule);
+        }
+
+        public static void AddRemoteDesktopRule()
+        {
+            new Firewall().AddCustomRemoteDesktopRule();
+        }
+
+        private void RemoveCustomRemoteDesktopRule()
+        {
+            if (RemoteDesktopFirewallRuleExists())
+            {
+                policyManager.Rules.Remove(FirewallRuleName);
+            }
+        }
+
+        public static void RemoveRemoteDesktopRule()
+        {
+            new Firewall().RemoveCustomRemoteDesktopRule();
         }
 
         public static bool RemoteDesktopRuleExists()
         {
             return new Firewall().RemoteDesktopFirewallRuleExists();
-        }
-
-        private bool SetRemoteDesktopFirewallRule(bool enabled, bool forceChange)
-        {
-            bool allowChange = true;
-
-            var rules = mgr.Rules.OfType<INetFwRule>().Where(x => x.LocalPorts == "3389");
-
-            foreach (var rule in rules)
-            {
-                if (rule.Enabled == enabled)
-                    allowChange = enabled || forceChange;
-            }
-
-            if (allowChange)
-            {
-                foreach (var rule in rules)
-                {
-                    rule.Enabled = enabled;
-                }
-            }
-
-            return allowChange;
-        }
-        public static bool SetRemoteDesktopEnabled(bool enabled, bool forceChange = false)
-        {
-            return new Firewall().SetRemoteDesktopFirewallRule(enabled, forceChange);
         }
     }
 }
