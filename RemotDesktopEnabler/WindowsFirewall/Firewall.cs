@@ -9,12 +9,18 @@ namespace RemotDesktopEnabler.WindowsFirewall
 {
     internal class Firewall
     {
-        readonly string FirewallRuleName = "RDPEnabler";
+        readonly string FirewallRuleName = Properties.Settings.Default.FirewallRuleName;
         readonly INetFwPolicy2 policyManager;
+        INetFwMgr manager;
+        INetFwProfile profile;
+        INetFwOpenPorts openPorts;
 
         public Firewall()
         {
             policyManager = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
+            manager = (INetFwMgr)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwMgr"));
+            profile = manager.LocalPolicy.CurrentProfile;
+            openPorts = profile.GloballyOpenPorts;
         }
 
         private FirewallStatus FirewallStatus(FirewallDomain? domain)
@@ -41,22 +47,27 @@ namespace RemotDesktopEnabler.WindowsFirewall
 
         private bool RemoteDesktopFirewallRuleExists()
         {
-            return policyManager.Rules.OfType<INetFwRule>().Where(x => x.Name == FirewallRuleName).Count() > 0;
+            return policyManager.Rules.OfType<INetFwRule>().Where(x => x.Name.StartsWith(FirewallRuleName)).Count() > 0;
+        }
+
+        private void OpenPort(string name, int port, NET_FW_IP_PROTOCOL_ protocol, NET_FW_SCOPE_ scope)
+        {
+            if (openPorts.OfType<INetFwOpenPort>().Where(x => x.Name == name).Count() == 0)
+            {
+                INetFwOpenPort openPort = (INetFwOpenPort)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwOpenPort"));
+                openPort.Port = port;
+                openPort.Protocol = protocol;
+                openPort.Scope = scope;
+                openPort.Name = name;
+
+                openPorts.Add(openPort);
+            }
         }
 
         private void AddCustomRemoteDesktopRule()
         {
-            INetFwRule rule = (INetFwRule)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwRule"));
-            rule.Action = NET_FW_ACTION_.NET_FW_ACTION_ALLOW;
-            rule.Protocol = 6; //TCP
-            rule.Enabled = true;
-            rule.Name = FirewallRuleName;
-            rule.InterfaceTypes = "All";
-            rule.RemoteAddresses = "LocalSubnet";
-            rule.LocalPorts = "3389";
-            rule.RemotePorts = "3389";
-
-            policyManager.Rules.Add(rule);
+            OpenPort($"{FirewallRuleName}_TCP", Properties.Settings.Default.RdpTcpPort, NET_FW_IP_PROTOCOL_.NET_FW_IP_PROTOCOL_TCP, (NET_FW_SCOPE_)Properties.Settings.Default.RdpScope);
+            OpenPort($"{FirewallRuleName}_UDP", Properties.Settings.Default.RdpUdpPort, NET_FW_IP_PROTOCOL_.NET_FW_IP_PROTOCOL_UDP, (NET_FW_SCOPE_)Properties.Settings.Default.RdpScope);
         }
 
         public static void AddRemoteDesktopRule()
@@ -66,10 +77,10 @@ namespace RemotDesktopEnabler.WindowsFirewall
 
         private void RemoveCustomRemoteDesktopRule()
         {
-            if (RemoteDesktopFirewallRuleExists())
-            {
-                policyManager.Rules.Remove(FirewallRuleName);
-            }
+            openPorts.Remove(Properties.Settings.Default.RdpTcpPort, NET_FW_IP_PROTOCOL_.NET_FW_IP_PROTOCOL_TCP);
+            openPorts.Remove(Properties.Settings.Default.RdpUdpPort, NET_FW_IP_PROTOCOL_.NET_FW_IP_PROTOCOL_UDP);
+
+            policyManager.Rules.Remove(FirewallRuleName);
         }
 
         public static void RemoveRemoteDesktopRule()
